@@ -1,0 +1,16 @@
+dataset/
+dataset2/
+original_dataset/*
+output_shards/*
+output_shards2/*
+tar_shards/*
+MyIterableDataset.zip
+zip.zip
+webdataset_metrics_8-tars.csv
+webdataset_metrics_10-tars.csv
+__pycache__/*
+/**/.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
