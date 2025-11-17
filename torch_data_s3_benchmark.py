@@ -22,13 +22,23 @@ def get_s3_connection(anon=False):
     
     with _s3_lock:
         if worker_id not in _s3_pool:
-            # Create connection with connection pooling
-            _s3_pool[worker_id] = s3fs.S3FileSystem(
-                anon=anon,
-                use_ssl=True,
-                requester_pays=False,
-                skip_instance_cache=False,  # Enable caching
-            )
+            try:
+                # Create connection with optimized settings
+                _s3_pool[worker_id] = s3fs.S3FileSystem(
+                    anon=anon,
+                    use_ssl=True,
+                    requester_pays=False,
+                    skip_instance_cache=False,  # Enable caching
+                    config_kwargs={
+                        'retries': {'max_attempts': 3, 'mode': 'adaptive'},
+                        'read_timeout': 60,
+                        'connect_timeout': 10,
+                    }
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to create S3 connection for worker {worker_id}: {repr(e)}")
+                # Fallback to basic connection
+                _s3_pool[worker_id] = s3fs.S3FileSystem(anon=anon)
         return _s3_pool[worker_id]
 
 
@@ -46,19 +56,34 @@ class S3ImageStreamDataset(IterableDataset):
             # Get persistent connection for file listing
             fs = get_s3_connection(anon=False)
             
-            # Find all files under prefix (recursive)
-            try:
-                all_files = fs.find(self.s3_prefix)
-            except Exception as e:
-                if self.s3_prefix.startswith("s3://"):
-                    without_scheme = self.s3_prefix[5:]
-                    all_files = fs.find(without_scheme)
-                else:
-                    raise
+            # Find all files under prefix (recursive) with retries
+            max_retries = 3
+            all_files = []
             
-            # Filter by extensions
-            exts = (".jpg", ".jpeg", ".png", ".webp")
-            self._files_cache = sorted([f for f in all_files if f.lower().endswith(exts)])
+            for attempt in range(max_retries):
+                try:
+                    all_files = fs.find(self.s3_prefix)
+                    break
+                except Exception as e:
+                    if self.s3_prefix.startswith("s3://"):
+                        try:
+                            without_scheme = self.s3_prefix[5:]
+                            all_files = fs.find(without_scheme)
+                            break
+                        except Exception as e2:
+                            if attempt == max_retries - 1:
+                                raise RuntimeError(f"Failed to list S3 files after {max_retries} attempts: {repr(e2)}")
+                            print(f"⚠️ Attempt {attempt + 1} failed, retrying: {repr(e2)}")
+                            time.sleep(1)
+                    else:
+                        if attempt == max_retries - 1:
+                            raise RuntimeError(f"Failed to list S3 files after {max_retries} attempts: {repr(e)}")
+                        print(f"⚠️ Attempt {attempt + 1} failed, retrying: {repr(e)}")
+                        time.sleep(1)
+            
+            # Filter by extensions (case-insensitive)
+            exts = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff")
+            self._files_cache = sorted([f for f in all_files if any(f.lower().endswith(ext) for ext in exts)])
             print(f"✅ Found {len(self._files_cache)} S3 images under: {self.s3_prefix}")
         
         return self._files_cache
@@ -78,23 +103,33 @@ class S3ImageStreamDataset(IterableDataset):
             files = list(chunks[worker_id]) if len(chunks) > worker_id else []
 
         for key in files:
-            try:
-                # Reuse persistent connection
-                with fs.open(key, "rb") as f:
-                    img_bytes = f.read()
-                
-                if not img_bytes:
-                    print(f"⚠️ Skipping empty file: {key}")
+            max_retries = 3
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                try:
+                    # Reuse persistent connection
+                    with fs.open(key, "rb") as f:
+                        img_bytes = f.read()
+                    
+                    if not img_bytes:
+                        print(f"⚠️ Skipping empty file: {key}")
+                        break
+                    
+                    img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                    if self.transform:
+                        img = self.transform(img)
+                    yield img
+                    break  # Success, exit retry loop
+                    
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print(f"⚠️ Failed to load {key} after {max_retries} attempts: {repr(e)}")
+                    else:
+                        print(f"⚠️ Retry {retry_count}/{max_retries} for {key}: {repr(e)}")
+                        time.sleep(0.1 * retry_count)  # Exponential backoff
                     continue
-                
-                img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-                if self.transform:
-                    img = self.transform(img)
-                yield img
-                
-            except Exception as e:
-                print(f"⚠️ Error loading {key}: {repr(e)}")
-                continue
 
     def state_dict(self):
         return {}
@@ -110,6 +145,10 @@ def worker_init_fn(worker_id):
         print(f"✅ Worker {worker_id} initialized S3 connection")
     except Exception as e:
         print(f"⚠️ Worker {worker_id} failed to initialize: {repr(e)}")
+
+
+def run_benchmark(dataset, run_id, num_workers=4, batch_size=32):
+    """Run benchmark with improved error handling and timing."""
     print(f"\n🔄 Running benchmark iteration {run_id + 1}...")
     process = psutil.Process(os.getpid())
 
@@ -119,7 +158,7 @@ def worker_init_fn(worker_id):
         num_workers=num_workers,
         drop_last=False,
         persistent_workers=True,
-        prefetch_factor=2,
+        prefetch_factor=4,  # Increased prefetch
         pin_memory=False,
         worker_init_fn=worker_init_fn,
     )
