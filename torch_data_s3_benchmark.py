@@ -48,13 +48,14 @@ class S3ImageStreamDataset(IterableDataset):
         self.s3_prefix = s3_prefix.rstrip("/")
         self.transform = transform
         self._files_cache = None
+        self.fs = get_s3_connection(anon=False)
     
     @property
     def files(self):
         """Lazy-load and cache file list."""
         if self._files_cache is None:
             # Get persistent connection for file listing
-            fs = get_s3_connection(anon=False)
+            
             
             # Find all files under prefix (recursive) with retries
             max_retries = 3
@@ -62,13 +63,13 @@ class S3ImageStreamDataset(IterableDataset):
             
             for attempt in range(max_retries):
                 try:
-                    all_files = fs.find(self.s3_prefix)
+                    all_files = self.fs.find(self.s3_prefix)
                     break
                 except Exception as e:
                     if self.s3_prefix.startswith("s3://"):
                         try:
                             without_scheme = self.s3_prefix[5:]
-                            all_files = fs.find(without_scheme)
+                            all_files = self.fs.find(without_scheme)
                             break
                         except Exception as e2:
                             if attempt == max_retries - 1:
@@ -89,8 +90,8 @@ class S3ImageStreamDataset(IterableDataset):
         return self._files_cache
 
     def __iter__(self):
-        # Get persistent connection for this worker
-        fs = get_s3_connection(anon=False)
+        # # Get persistent connection for this worker
+        # fs = get_s3_connection(anon=False)
         
         worker_info = get_worker_info()
         if worker_info is None:
@@ -109,7 +110,7 @@ class S3ImageStreamDataset(IterableDataset):
             while retry_count < max_retries:
                 try:
                     # Reuse persistent connection
-                    with fs.open(key, "rb") as f:
+                    with self.fs.open(key, "rb") as f:
                         img_bytes = f.read()
                     
                     if not img_bytes:
@@ -257,7 +258,7 @@ def main():
             "std": np.std(values),
         }
 
-    metrics_file = "metrics/torchdata_metrics_s3_images.csv"
+    metrics_file = "ec2_metrics/torchdata_metrics_s3_images.csv"
     os.makedirs("metrics", exist_ok=True)
     
     with open(metrics_file, "w", newline="") as f:

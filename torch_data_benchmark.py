@@ -128,14 +128,14 @@ def torchdata_direct_loading(dataset, sampler, run_id):
 
 def main():
 
-    local = 's3://authenta-streaming-data/original_dataset/dragon_train_000/'
+    local = '/home/ubuntu/s3mount/original_dataset'
     print(f"Loading dataset from: {local}")
 
     # Number of benchmark runs
     num_runs = 1
     print(f"\n🚀 Starting {num_runs} benchmark iterations...")
 
-    dataset = ImageFolderDataset("./original_dataset",
+    dataset = ImageFolderDataset(local,
         transform=transforms.Compose([
             transforms.Resize((512,512)),
             transforms.ToTensor()
@@ -176,7 +176,7 @@ def main():
         }
 
     # Save detailed metrics to CSV
-    metrics_file = "metrics/torchdata_metrics_10000_images.csv"
+    metrics_file = "ec2_metrics/torchdata_metrics_10000_images.csv"
     with open(metrics_file, "w", newline="") as f:
         writer = csv.writer(f)
 

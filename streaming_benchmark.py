@@ -167,12 +167,12 @@ def run_single_benchmark(dataset, local_cache_path, run_id):
 
 def main():
 
-    local = 's3://authenta-streaming-data/mds_shards/'
+    local = '/home/ubuntu/s3mount/mds_shards'
     batch_size = 32  # Must match DataLoader batch_size
 
     print(f"Loading dataset from: {local}")
 
-    dataset = StreamingDataset(remote=local, local='./cache', batch_size=batch_size, shuffle=True)
+    dataset = StreamingDataset(remote=local, local=None, batch_size=batch_size, shuffle=True)
 
     # Number of benchmark runs
     num_runs = 1
@@ -212,7 +212,7 @@ def main():
         }
 
     # Save detailed metrics to CSV
-    metrics_file = "metrics/streaming_metrics_s3_images.csv"
+    metrics_file = "ec2_metrics/streaming_metrics_images.csv"
     with open(metrics_file, "w", newline="") as f:
         writer = csv.writer(f)
 

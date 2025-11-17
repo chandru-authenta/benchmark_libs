@@ -47,16 +47,17 @@ def benchmark_ray_direct_loading(local, run_id, batch_size=32, num_workers=4):
 
     start_time = time.time()
     batch_idx = 0
+    batch_time=time.time()
 
     # Iterate over batches
     for batch in ds.iter_torch_batches(batch_size=batch_size, local_shuffle_buffer_size=250):
-        batch_start = time.time()
+        elapsed=time.time()-batch_time
         
-        data_load_time = time.time() - batch_start
-        all_data_load_times.append(data_load_time)
+        all_data_load_times.append(time.time() - elapsed)
         
         total_images += len(batch["image"])
         batch_idx += 1
+        batch_time=time.time()
         
         print(f"process batch of {len(batch['image'])} images")
         
@@ -84,13 +85,13 @@ def benchmark_ray_direct_loading(local, run_id, batch_size=32, num_workers=4):
 
 
 def main():
-    local = './original_dataset'
+    local = '/home/ubuntu/s3mount/original_dataset'
 
     print(f"Loading dataset from: {local}")
 
 
     # Number of benchmark runs
-    num_runs = 3
+    num_runs = 1
     print(f"\n🚀 Starting {num_runs} benchmark iterations...")
 
     # Collect metrics from all runs

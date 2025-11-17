@@ -151,13 +151,13 @@ def benchmark_squirrel_direct_loading(local, run_id):
         
 
 def main():
-    local = './original_dataset'
+    local = '/home/ubuntu/s3mount/original_dataset'
 
     print(f"Loading dataset from: {local}")
 
 
     # Number of benchmark runs
-    num_runs = 3
+    num_runs = 1
     print(f"\n🚀 Starting {num_runs} benchmark iterations...")
 
     # Collect metrics from all runs
@@ -196,7 +196,7 @@ def main():
         }
 
     # Save detailed metrics to CSV
-    metrics_file = "metrics/squirrel-data_metrics_10000_images.csv"
+    metrics_file = "ec2_metrics/squirrel-data_metrics_10000_images.csv"
     with open(metrics_file, "w", newline="") as f:
         writer = csv.writer(f)
 
