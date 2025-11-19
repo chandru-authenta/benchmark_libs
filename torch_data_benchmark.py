@@ -128,7 +128,7 @@ def torchdata_direct_loading(dataset, sampler, run_id):
 
 def main():
 
-    local = '/home/ubuntu/s3mount/original_dataset'
+    local = './original_dataset'
     print(f"Loading dataset from: {local}")
 
     # Number of benchmark runs
@@ -176,7 +176,11 @@ def main():
         }
 
     # Save detailed metrics to CSV
+<<<<<<< Updated upstream
     metrics_file = "ec2_metrics/dataloader_metrics.csv"
+=======
+    metrics_file = "metrics/dataloader_metrics.csv"
+>>>>>>> Stashed changes
     with open(metrics_file, "w", newline="") as f:
         writer = csv.writer(f)
 

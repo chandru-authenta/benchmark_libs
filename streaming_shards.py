@@ -6,6 +6,7 @@ import io
 import pathlib
 from multiprocessing import Pool,cpu_count
 from tqdm import tqdm
+from fractions import Fraction
 
 input_folder = './original_dataset'
 output_dir = './output_shards2'
@@ -73,4 +74,25 @@ with MDSWriter(out=output_dir, columns=columns, compression='zstd',size_limit='2
             writer.write(sample)
 
 print("✓ Dataset sharding completed successfully!")
+
+# Calculate compression ratio
+original_size = 0
+for class_name in os.listdir(input_folder):
+    if class_name.startswith('.'):
+        continue
+    class_folder = os.path.join(input_folder, class_name)
+    for fname in os.listdir(class_folder):
+        if fname.startswith('.') or not fname.lower().endswith(('.png')):
+            continue
+        original_size += os.path.getsize(os.path.join(class_folder, fname))
+
+compressed_size = 0
+for fname in os.listdir(output_dir):
+    if fname.endswith('.mds.zstd') or fname.endswith('.mds'):
+        compressed_size += os.path.getsize(os.path.join(output_dir, fname))
+
+compression_ratio = Fraction(compressed_size, original_size).limit_denominator() if original_size > 0 else Fraction(0)
+print(f"Original size: {original_size / (1024**2):.2f} MB")
+print(f"Compressed size: {compressed_size / (1024**2):.2f} MB")
+print(f"Compression ratio: {compression_ratio}")
                     
