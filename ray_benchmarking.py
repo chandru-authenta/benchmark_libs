@@ -17,12 +17,11 @@ def transform_image(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 
-def benchmark_ray_direct_loading(local, run_id, batch_size=32, num_workers=4):
+def benchmark_ray_direct_loading(local, run_id, batch_size=32, num_workers=3):
     print(f"\n🔄 Running benchmark iteration {run_id + 1}...")
 
     # Initialize Ray
-    if not ray.is_initialized():
-        ray.init(num_cpus=num_workers, ignore_reinit_error=True)
+    ray.init(num_cpus=num_workers, ignore_reinit_error=True)
     
     process = psutil.Process(os.getpid())
 
@@ -41,7 +40,7 @@ def benchmark_ray_direct_loading(local, run_id, batch_size=32, num_workers=4):
         return cpu, ram, disk
     
     ds = (
-        ray.data.read_images(local)
+        ray.data.read_images(local, parallelism=num_workers)
         .map(transform_image)
     )
 
@@ -50,7 +49,7 @@ def benchmark_ray_direct_loading(local, run_id, batch_size=32, num_workers=4):
     batch_time=time.time()
 
     # Iterate over batches
-    for batch in ds.iter_torch_batches(batch_size=batch_size, local_shuffle_buffer_size=250):
+    for batch in ds.iter_torch_batches(batch_size=batch_size, local_shuffle_buffer_size=1):
         elapsed=time.time()-batch_time
         
         all_data_load_times.append(time.time() - elapsed)
@@ -130,7 +129,7 @@ def main():
         }
 
     # Save detailed metrics to CSV
-    metrics_file = "metrics/ray-data_metrics_10000_images.csv"
+    metrics_file = "ec2_metrics/ray-data_metrics_10000_images.csv"
     with open(metrics_file, "w", newline="") as f:
         writer = csv.writer(f)
 

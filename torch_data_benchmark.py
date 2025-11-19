@@ -71,7 +71,7 @@ def torchdata_direct_loading(dataset, sampler, run_id):
     print(f"\n🔄 Running benchmark iteration {run_id + 1}...")
     process = psutil.Process(os.getpid())
 
-    loader = StatefulDataLoader(
+    loader = DataLoader(
         dataset,
         sampler=sampler,
         batch_size=32,
@@ -176,7 +176,7 @@ def main():
         }
 
     # Save detailed metrics to CSV
-    metrics_file = "ec2_metrics/torchdata_metrics_10000_images.csv"
+    metrics_file = "ec2_metrics/dataloader_metrics.csv"
     with open(metrics_file, "w", newline="") as f:
         writer = csv.writer(f)
 
